@@ -1,0 +1,275 @@
+html {
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  line-height: 1.5;
+  color: #424449;
+}
+
+.o-container {
+  display: grid;
+  max-width: 75rem;
+  gap: 2rem;
+  width: 100%;
+  margin: auto;
+}
+
+@media (min-width: 992px) {
+  .o-container {
+    grid-template-columns: 1fr 400px;
+    grid-template-rows: repeat(11);
+    margin: 3rem auto;
+    padding: 0 1rem;
+  }
+}
+
+.div2,
+.div3,
+.div4,
+.div5,
+.div6,
+.div8,
+.div9,
+.div10 {
+  padding: 0 1rem;
+}
+
+@media (min-width: 992px) {
+  .div2,
+  .div3,
+  .div4,
+  .div5,
+  .div6,
+  .div8,
+  .div9,
+  .div10 {
+    padding: 0;
+  }
+
+  .div1 {
+    grid-area: 1 / 1 / 2 / 3;
+  }
+  .div2 {
+    grid-area: 2 / 1 / 3 / 2;
+  }
+  .div3 {
+    grid-area: 3 / 1 / 4 / 2;
+  }
+  .div4 {
+    grid-area: 4 / 1 / 5 / 2;
+  }
+  .div5 {
+    grid-area: 5 / 1 / 6 / 2;
+  }
+  .div6 {
+    grid-area: 6 / 1 / 7 / 2;
+  }
+  .div7 {
+    grid-area: 7 / 1 / 8 / 3;
+  }
+  .div8 {
+    grid-area: 8 / 1 / 9 / 3;
+  }
+  .div9 {
+    grid-area: 9 / 1 / 10 / 3;
+  }
+  .div10 {
+    grid-area: 10 / 1 / 11 / 3;
+  }
+  .div11 {
+    grid-area: 11 / 1 / 12 / 3;
+  }
+  .div12 {
+    grid-area: 2 / 2 / 7 / 3;
+  }
+}
+
+.o-image img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 474px;
+  object-fit: cover;
+}
+
+.c-navbar {
+  display: flex;
+  align-items: center;
+  background-color: #424449;
+  padding: 1rem;
+}
+
+.c-navbar__item {
+  display: flex;
+}
+
+.c-alert {
+  display: flex;
+  background-color: #424449;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  padding: 1.5rem 1rem;
+}
+
+.c-alert .c-icon {
+  margin-right: 1rem;
+}
+
+.c-alert--success {
+  border-top: 4px solid #2f855a;
+  background-color: #f0fff4;
+  color: #2f855a;
+}
+
+.c-alert--error {
+  border-top: 4px solid #c53030;
+  background-color: #fff5f5;
+  color: #c53030;
+}
+
+.c-label {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.c-label--input {
+  margin-bottom: 0.75rem;
+}
+
+.c-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+
+.c-heading {
+  font-size: 2rem;
+  display: block;
+  margin: 0;
+}
+
+.c-paragraph {
+  font-size: 1rem;
+  display: block;
+  margin: 0;
+}
+
+.c-title .c-icon {
+  margin-right: 1rem;
+}
+
+.c-seperator {
+  display: block;
+  width: 100%;
+  border-top: 1px solid #858585;
+  opacity: 0.25;
+}
+
+.c-data {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c-data__item {
+  flex: 1;
+}
+
+.c-simcard {
+  display: flex;
+  align-items: center;
+}
+
+.c-simcard img {
+  margin-right: 0.5rem;
+}
+
+.c-input {
+  display: block;
+  width: 100%;
+}
+
+.c-googlemap-wrapper {
+  height: 0;
+  overflow: hidden;
+  padding-bottom: 400px;
+  position: relative;
+}
+
+.c-googlemap {
+  border: 0;
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+
+  position: relative;
+  margin: 20px auto;
+}
+
+.double-bounce1, .double-bounce2 {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: #333;
+  opacity: 0.6;
+  position: absolute;
+  top: 0;
+  left: 0;
+  
+  -webkit-animation: sk-bounce 2.0s infinite ease-in-out;
+  animation: sk-bounce 2.0s infinite ease-in-out;
+}
+
+.double-bounce2 {
+  -webkit-animation-delay: -1.0s;
+  animation-delay: -1.0s;
+}
+
+@-webkit-keyframes sk-bounce {
+  0%, 100% { -webkit-transform: scale(0.0) }
+  50% { -webkit-transform: scale(1.0) }
+}
+
+@keyframes sk-bounce {
+  0%, 100% { 
+    transform: scale(0.0);
+    -webkit-transform: scale(0.0);
+  } 50% { 
+    transform: scale(1.0);
+    -webkit-transform: scale(1.0);
+  }
+}
+
+.rotate90 {
+    -webkit-transform: rotate(90deg);
+    -moz-transform: rotate(90deg);
+    -o-transform: rotate(90deg);
+    -ms-transform: rotate(90deg);
+    transform: rotate(90deg);
+}
+
+.icon {
+    fill: #424449;
+}
+.icon:hover{
+    fill: #606060;
+}

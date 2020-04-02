@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+
+  <link href="https://fonts.googleapis.com/css?family=IBM+Plex+Sans:400,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://necolas.github.io/normalize.css/8.0.1/normalize.css" />
+  <link rel="stylesheet" href="/static/photo_verifier_styles.css" />
+
+  <title>Photo Verifier</title>
+
+  <script src="/static/kjur.js"></script>
+  <script src="/static/jquery.min.js"></script>
+  <script src="/static/piexif.js"></script>
+  
+  <script type="text/javascript">
+  const IMG_PREFIX = "data:image/jpeg;base64,";
+
+  var locationHostPort = location.hostname+(location.port ? ':'+location.port: ''); 
+	var baseURL = location.protocol+'//'+locationHostPort;
+
+	function htmlEncode(s) {
+        if (s) {
+            return $('<div>').text(s).html();
+        } else {
+            return '';
+        }
+    }
+  	  	
+    function flattenImage(img) {
+        var exif = piexif.load(img);
+        exif.Exif[piexif.ExifIFD.MakerNote] = "";
+        var exifStr = piexif.dump(exif);
+        var newImg = piexif.insert(exifStr, img);
+        return newImg;
+    }  	
+
+    function sha256hex(data) {
+        var md = new KJUR.crypto.MessageDigest({
+                alg : "sha256",
+                prov : "cryptojs"
+        });
+        md.updateHex(data);
+        return md.digest();
+	}
+    
+    //
+    // The image hash is calculated client-side, and the
+    // hash and extracted signature information from MakerNote exif data is sent
+    // to the server for verification. This way the image itself never goes to the
+    // server.
+    //
+    function verifyImageHash(img) {
+    	try {
+	    	var exif = piexif.load(img);    	
+	    	var sigInfoStr = exif.Exif[piexif.ExifIFD.MakerNote];
+	    	
+	    	if (sigInfoStr == null) {
+	    		throw "Image does not contain required signature information in MakerNote EXIF field";
+	    	}
+	    	var flatImage = flattenImage(img);
+	    	
+	    	if (flatImage == null) {
+	    		throw "Image hash could not be calculated";
+	    	}
+
+	    	var payload = {
+	    		"imageHash": sha256hex(b64tohex(flatImage.substring(IMG_PREFIX.length))),
+	    		"sigInfo": sigInfoStr
+	    	};
+	    	
+	    	// send to server where validation will take place
+			$.ajax({
+				type:"POST",
+				url: baseURL + '/photo_verifier',				
+				data: JSON.stringify(payload),
+				beforeSend: function(request) {
+					request.setRequestHeader("Content-type", "application/json");
+					request.setRequestHeader("Accept", "application/json");
+				}
+			}).done(function(data, textStatus, jqXHR) {
+				processImageResult(img, data, textStatus, jqXHR);
+			});
+    	} catch (e) {
+    		msgError("Error processing image: " + e);
+    	}
+    }
+    
+    function getTimestamp(exif) {
+    	var result = "";
+
+    	var exifDT = exif.Exif[piexif.ExifIFD.DateTimeOriginal];
+    	if (exifDT == null) {
+    		exifDT = exif.Exif[piexif.ExifIFD.DateTimeDigitized];
+    	}
+    	if (exifDT != null) {
+    		// should be of the form "YYYY:MM:DD HH:mm:ss"
+    		var dregExp = /^([0-9][0-9][0-9][0-9]):([0-9][0-9]):([0-9][0-9]) ([0-9][0-9]):([0-9][0-9]):([0-9][0-9])$/;
+    		var matcher = exifDT.match(dregExp);
+    		if (matcher != null && matcher.length == 7) {
+				var YYYY = parseInt(matcher[1]);
+				var MM = parseInt(matcher[2]) - 1;
+				var DD = parseInt(matcher[3]);
+				var hh = parseInt(matcher[4]);
+				var mm = parseInt(matcher[5]);
+				var ss = parseInt(matcher[6]);
+				//console.log("YYYY: " + YYYY + " MM: " + MM + " DD: " + DD + " hh: " + hh + " mm: " + mm + " ss: " + ss);
+
+    			var dt = new Date();
+    			dt.setFullYear(YYYY, MM, DD);
+    			dt.setHours(hh, mm, ss);
+    			
+        		// print formatted
+        		var dOptions = {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'};
+        		result = "Device: " + htmlEncode(dt.toLocaleTimeString('en-US', dOptions));
+        		result += " (timezone not specified)";        		
+    		}
+    		
+    	}
+    	
+		// if we have signed timestamp info in usercomment, include that also
+		var userComment = getUserComment(exif);
+		if (userComment != null && userComment.signedTimeStamp != null) {
+			if (result.length > 0) {
+				result += "<br />"; 
+			}
+			
+			result += "Signed timestamp: ";
+			var timeField = userComment.signedTimeStamp.time ;
+			var authority = userComment.signedTimeStamp.authority;
+			var err = userComment.signedTimeStamp.errorSeconds;
+
+			var timeField = timeField.string + '<br />&nbsp;&nbsp;' + authority.organization + ' [' +authority.domain + ']' + '<br />&nbsp;&nbsp;Error: ' + err + ' seconds';
+			
+			result += timeField;			
+		}
+    	
+    	if (result.length == 0) {
+    		result = "unavailable";
+    	}
+    	
+		return result;		
+    }
+    
+    function getMakeModel(exif) {
+    	var result = "unavailable";
+		var imgInfo = exif["0th"];
+		
+		if (imgInfo) {
+			var make = imgInfo[piexif.ImageIFD.Make];
+			var model = imgInfo[piexif.ImageIFD.Model];
+			if (make != null || model != null) {
+				result = (make != null ? ("Make: " + htmlEncode(make) + " ") : "");
+				result += (model != null ? ("Model: " + htmlEncode(model)) : "");
+			}
+		}
+		
+		return result;
+    }
+
+    function makeDegreesString(rawData) {
+    	result = "";
+		result += Math.floor(rawData) + "° ";
+		var fraction = rawData - Math.floor(rawData);
+		var minutes = Math.floor(fraction * 60);
+		var seconds = ((fraction * 60) - minutes) * 60;
+		result += minutes + "' " + seconds.toFixed(2) + "\"";
+		return result;
+    }
+
+    function makeLatLongString(gpsData) {
+    	result = "";
+    	
+		var latitudeRaw = piexif.GPSHelper.dmsRationalToDeg(gpsData[piexif.GPSIFD.GPSLatitude]);
+		var latitudeRef = gpsData[piexif.GPSIFD.GPSLatitudeRef];
+		var longitudeRaw = piexif.GPSHelper.dmsRationalToDeg(gpsData[piexif.GPSIFD.GPSLongitude]);
+		var longitudeRef = gpsData[piexif.GPSIFD.GPSLongitudeRef];
+		
+		result += makeDegreesString(latitudeRaw);
+		result += " " + (latitudeRef == "S" ? "South" : "North");
+		result += ", ";
+		result += makeDegreesString(longitudeRaw);
+		result += " " + (longitudeRef == "E" ? "East" : "West");
+    	
+    	return result;
+    }
+
+    function getLatLon(exif) {
+    	var result = {
+    		"location": "unavailable",
+			"coord": null,
+			"accuracy": null
+    	};
+    	
+    	try {
+	    	if (exif["GPS"]) {
+	    		var gpsKeys = Object.keys(exif["GPS"]);
+				if ("1" in gpsKeys && "2" in gpsKeys && "3" in gpsKeys && "4" in gpsKeys) {
+					console.log("Processing GPS info");
+					result.location = makeLatLongString(exif["GPS"]);
+					var latitude = piexif.GPSHelper.dmsRationalToDeg(exif["GPS"][piexif.GPSIFD.GPSLatitude]) * ((exif["GPS"][piexif.GPSIFD.GPSLatitudeRef] == "S") ? -1 : 1);
+					var longitude = piexif.GPSHelper.dmsRationalToDeg(exif["GPS"][piexif.GPSIFD.GPSLongitude]) * ((exif["GPS"][piexif.GPSIFD.GPSLongitudeRef] == "W") ? -1 : 1);
+					result.coord = {
+						"lat" : latitude,
+						"lon": longitude
+					};
+					var accuracy = exif["GPS"][piexif.GPSIFD.GPSHPositioningError];
+					if (accuracy && accuracy.length) {
+						result.accuracy = accuracy[0]/accuracy[1];
+					}
+				}
+	    	}
+    	} catch (e) {
+    		console.log("Error processing GPS information: " + e);
+    	}
+    	
+    	
+    	return result;
+    }
+    
+    function getUserComment (exif) {
+        try{
+            var userComment = exif.Exif[piexif.ExifIFD.UserComment];
+            return JSON.parse(userComment);
+        } catch(e) {
+            console.log("Error processing user comment", e);
+        }
+        return {version:[0,0,0,0]};
+    }    
+    
+    var globalImage = null;
+
+    function processImageResult(img, data, textStatus, jqXHR) {
+		var rspStatus = jqXHR.status;
+		console.log("rspStatus: " + rspStatus);
+		if (rspStatus == 200) {
+			if (data.status == "ok") {
+				resetState();
+				
+				metadataDescription = '';
+				metadataIcon = '';
+				if (data.reg.metadata) {
+					metadataDescription = htmlEncode(data.reg.metadata.description);
+					metadataIcon = data.reg.metadata.icon;
+				}
+				
+				globalImage = img;
+		    var exif = piexif.load(img);
+				
+				var timestamp = getTimestamp(exif);
+				var makeModel = getMakeModel(exif);
+				var latlon = getLatLon(exif);
+				var userComment = getUserComment(exif);
+				
+				msgSuccess('The image signature verified successfully');				
+		        displayInfo({
+		            owner: htmlEncode(data.reg.username),
+		            department: htmlEncode(data.reg.department),
+		            nickname: htmlEncode(data.reg.nickname),
+		            attestationMetadata: metadataDescription,
+		            attestationMetadataImage: metadataIcon,
+		            image: img,
+		            time: timestamp,
+		            makeModel: makeModel,
+		            location: latlon.location,
+		            coord: latlon.coord,
+		            accuracy: (latlon.accuracy != null ? (latlon.accuracy + ' meters') : 'unavailable'),
+		            imported: userComment.imported
+		        });
+				
+			} else {
+				msgError("The image failed to verify");
+			}
+		} else {
+			msgError("Received unexpected HTTP response code: " + rspStatus);
+		}    	
+    }
+    
+    function rotateRight(numDegrees) {
+        var imgDiv = document.getElementById("data-image");
+        if (imgDiv != null) {
+	        var images = imgDiv.getElementsByTagName("img");
+	        if (images != null && images.length == 1) {
+	            var imgHTML = images[0];
+	            var deg = (($(imgHTML).data('rotate') || 0) + numDegrees) % 360;
+	            $(imgHTML).data('rotate', deg);
+	            var rotate = 'rotate(' + deg + 'deg)';
+	            $(imgHTML).css({ 
+	                '-webkit-transform': rotate,
+	                '-moz-transform': rotate,
+	                '-o-transform': rotate,
+	                '-ms-transform': rotate,
+	                'transform': rotate 
+	            });
+	        }
+        }
+    }    
+        
+    function handleFileSelect(evt) {
+    	resetState();
+    	loading();	
+    	var files = evt.target.files; // FileList object
+    	if (files != null && files.length == 1 && files[0].type == "image/jpeg") {
+    		var reader = new FileReader();
+    		reader.onload = function(e) {
+    			verifyImageHash(e.target.result);
+    		};
+    		reader.readAsDataURL(files[0]);
+    	} else {
+    		msgError("Not processing invalid JPEG file");
+    	}
+    }    
+	
+	function onLoad() {
+		// set up file handler
+		document.getElementById('file-upload').addEventListener('change', handleFileSelect, false);
+		resetState();
+	}
+
+  </script>
+</head>
+
+<body onload="onLoad()">
+  <header class="c-navbar">
+    <a class="c-navbar__item" href="index.html">
+      <svg xmlns="http://www.w3.org/2000/svg" width="73.667" height="29.467" viewBox="0 0 73.667 29.467">
+        <path
+          d="M10,162v2.016H24.339V162Zm16.371,0v2.016H46.8A7.78,7.78,0,0,0,41.953,162Zm24.442,0v2.016H63.175L62.441,162Zm21.225,0-.734,2.016h12.25V162ZM10,165.921v2.016H24.339v-2.016Zm16.371,0v2.013H49.176a5.3,5.3,0,0,0-.731-2.013Zm24.442,0v2.013H64.531l-.679-2.013Zm19.758,0-.679,2.013H83.554v-2.013Zm-56.45,3.918v2.019h6.21v-2.019Zm16.371,0v2.019H36.7v-2.019Zm12.25,0v2.019h6.21a6.869,6.869,0,0,0,.394-2.019Zm12.192,0v2.019h11.01l-.734-2.019Zm14.284,0-.737,2.019H79.546v-2.019Zm-55.1,3.923v2.016h6.21v-2.016Zm16.371,0v2.016H46.353a6.8,6.8,0,0,0,1.75-2.016Zm24.442,0v2.016h6.21v-1.122l.394,1.122H72.913l.423-1.122v1.122h6.21v-2.016H67.889l-.619,1.708-.622-1.708Zm-40.813,3.921V179.7h6.21v-2.016Zm16.371,0V179.7H48.1a6.853,6.853,0,0,0-1.75-2.016Zm24.442,0V179.7h6.21v-2.016Zm7.338,0,.751,2.016h8.529l.714-2.016Zm11.064,0V179.7h6.21v-2.016Zm-59.215,3.921v2.016h6.21v-2.016Zm16.371,0v2.016H36.7v-2.016Zm12.25,0v2.016h6.6a6.851,6.851,0,0,0-.394-2.016Zm12.192,0v2.016h6.21v-2.016Zm8.748,0,.728,2.016h5.718l.734-2.016Zm9.654,0v2.016h6.21v-2.016Zm-63.224,3.921v2.019H24.451v-2.019Zm16.258,0v2.019H48.445a5.318,5.318,0,0,0,.731-2.019Zm24.555,0v2.019H61.144v-2.019Zm14.17,0,.748,2.019h2.909l.7-2.019Zm8.241,0v2.019H83.667v-2.019Zm-63.224,3.924v2.016H24.451V189.45H10.112Zm16.258,0v2.013H41.953a7.784,7.784,0,0,0,4.852-2.013Zm24.555,0v2.016H61.144V189.45H50.925Zm15.588,0,.719,2.01.124,0,.731-2.013Zm6.823,0v2.016H83.667V189.45H73.336Z"
+          transform="translate(-10 -162)" fill="#fff" />
+      </svg>
+    </a>
+  </header>
+  <main>
+    <div class="o-container">
+      <div class="div1">
+        <div id="msg-success" style="display:none;" class="c-alert c-alert--success">
+          <svg class="c-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <g transform="translate(-4 -4)">
+              <path
+                d="M16,4A12,12,0,1,0,28,16,12,12,0,0,0,16,4Zm0,21.818A9.818,9.818,0,1,1,25.818,16,9.818,9.818,0,0,1,16,25.818Z"
+                fill="#2f855a" />
+              <path
+                d="M44.106,36.438a1.5,1.5,0,0,0-2.121,0l-5.3,5.3L34.56,39.621a1.5,1.5,0,1,0-2.121,2.122l3.181,3.181a1.5,1.5,0,0,0,2.122,0l6.364-6.364A1.5,1.5,0,0,0,44.106,36.438Z"
+                transform="translate(-22.12 -24.569)" fill="#2f855a" />
+            </g>
+          </svg>
+          The image signature verified successfully
+        </div>
+        <div id="msg-error" style="display:none;" class="c-alert c-alert--error">
+          <svg class="c-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <g transform="translate(-4 -4)">
+              <path
+                d="M16,4A12,12,0,1,0,28,16,12,12,0,0,0,16,4Zm0,21.818A9.818,9.818,0,1,1,25.818,16,9.818,9.818,0,0,1,16,25.818Z"
+                fill="#c53030" />
+              <path
+                d="M38.406,36.864,40.72,34.55a1.091,1.091,0,1,0-1.543-1.543l-2.314,2.314-2.314-2.314a1.091,1.091,0,1,0-1.543,1.543l2.314,2.314-2.314,2.314a1.091,1.091,0,0,0,1.543,1.543l2.314-2.314,2.314,2.314a1.091,1.091,0,1,0,1.543-1.543Z"
+                transform="translate(-20.863 -20.864)" fill="#c53030" />
+            </g>
+          </svg>
+          Error processing image: Image does not contain required signature information in MakerNote EXIF field
+        </div>
+        <div id="loading" class="spinner">
+            <div class="double-bounce1"></div>
+            <div class="double-bounce2"></div>
+        </div>
+      </div>
+      <div class="div2">
+        <h1 class="c-heading">Photo Verifier</h1>
+        <p class="c-paragraph">
+          Verify a JPEG photo signature against known registrations
+        </p>
+      </div>
+      <!--<span id="photo-upload">-->
+          <div class="div3">
+            <label class="c-label c-label--input" for="file-upload">Photo Selection</label>
+            <input id="file-upload" class="c-input" type="file" />
+          </div>
+          <div class="div12 o-image" style="display: none;">
+              <div id="data-imported" style="height: 50px; width: 100%; background-color: red; color: white; text-align: center; display: none;">
+                  <h1>IMPORTED</h1>
+              </div>
+              <div id="data-image"></div>
+              <p>Rotate: 
+                  <a href="javascript:void(0)" onclick="rotateRight(-90)">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"></path><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"></path></svg>
+                  </a>
+                  <a href="javascript:void(0)" onclick="rotateRight(90)">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"></path><path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"></path></svg>
+                  </a>
+              </p>
+          </div>
+      <!--</span>-->
+      <!--<div style="display:none" id="photo-information">-->
+          <div class="div4">
+            <div class="c-title">
+              <svg class="c-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="22" viewBox="0 0 16 22">
+                <g transform="translate(-4 -1)">
+                  <rect width="14" height="20" rx="2" transform="translate(5 2)" stroke-width="2" stroke="#424449"
+                    stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  <line transform="translate(12 18)" stroke-width="2" stroke="#424449" stroke-linecap="round"
+                    stroke-linejoin="round" fill="none" />
+                </g>
+              </svg>
+              Device Owner Information
+            </div>
+          </div>
+          <div class="div5">
+            <div class="c-data">
+              <div class="c-data__item">
+                <label class="c-label">Owner</label>
+                <p id="data-owner" class="c-paragraph"></p>
+              </div>
+              <div class="c-data__item">
+                <label class="c-label">Department</label>
+                <p id="data-department" class="c-paragraph"></p>
+              </div>
+            </div>
+          </div>
+          <div class="div6">
+            <div class="c-data">
+              <div class="c-data__item">
+                <label class="c-label">Registration Nickname</label>
+                <p id="data-nickname" class="c-paragraph"></p>
+              </div>
+              <div class="c-data__item">
+                <label class="c-label">Attestation Metadata</label>
+                <div class="c-simcard">
+                  <span id="data-attestationMetadataImage"></span>
+                  <span id="data-attestationMetadata"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="div7">
+            <div class="c-seperator"></div>
+          </div>
+          <div class="div8">
+            <div class="c-title">
+              <svg class="c-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20">
+                <g transform="translate(-4 -4)">
+                  <path
+                    d="M21.273,4H6.727A2.727,2.727,0,0,0,4,6.727V21.273A2.727,2.727,0,0,0,6.727,24H21.273A2.727,2.727,0,0,0,24,21.273V6.727A2.727,2.727,0,0,0,21.273,4ZM5.818,21.273V6.727a.909.909,0,0,1,.909-.909H21.273a.909.909,0,0,1,.909.909v9.624l-4.545-4.545L7.26,22.182H6.727A.909.909,0,0,1,5.818,21.273Zm15.455.909H9.831l7.805-7.805,4.545,4.545v2.351A.909.909,0,0,1,21.273,22.182Z"
+                    fill="#424449" />
+                  <path
+                    d="M22.727,20a2.727,2.727,0,1,0,2.727,2.727A2.727,2.727,0,0,0,22.727,20Zm0,3.636a.909.909,0,1,1,.909-.909A.909.909,0,0,1,22.727,23.636Z"
+                    transform="translate(-12.364 -12.364)" fill="#424449" />
+                </g>
+              </svg>
+              Image Information
+            </div>
+          </div>
+          <div class="div9">
+            <div class="c-data">
+              <div class="c-data__item">
+                <label class="c-label">Date/Time</label>
+                <p id="data-time" class="c-paragraph"></p>
+              </div>
+              <div class="c-data__item">
+                <label class="c-label">Camera Make / Model</label>
+                <p id="data-makeModel" class="c-paragraph"></p>
+              </div>
+            </div>
+          </div>
+          <div class="div10">
+            <div class="c-data">
+              <div class="c-data__item">
+                <label class="c-label">Location</label>
+                <p id="data-location" class="c-paragraph"></p>
+              </div>
+
+              <div class="c-data__item">
+                <label class="c-label">Accuracy</label>
+                <p id="data-accuracy" class="c-paragraph"></p>
+              </div>
+            </div>
+
+          </div>
+          <div class="div11">
+            <div id="data-map" class="c-googlemap-wrapper">
+
+            </div>
+          </div>
+      <!--</div>-->
+    </div>
+  </main>
+
+
+  <script>
+// Example for filling out data.
+
+/*
+    Display a successful messsage.
+*/
+function msgSuccess(msg){
+    document.getElementById('msg-error').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('msg-success').style.display = 'block';
+
+    document.getElementById('msg-success').textContent = msg;
+}
+
+/*
+    Display an error messsage.
+ */
+function msgError(msg){
+    document.getElementById('msg-success').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('msg-error').style.display = 'block';
+
+    document.getElementById('msg-error').textContent = msg;
+}
+
+
+
+/**
+    Display text or html information on page fields.
+    @param {Object} info {  owner:,
+                            department:,
+                            nickname:,
+                            attestationMetadata:,
+                            attestationMetadataImage: <src for image icon>,
+                            image: <src for main image>,
+                            time:,
+                            makeModel:,
+                            location:,
+                            coord: {lat:, lon:}
+                            accuracy:,
+                        }
+
+    Non-specified fields will overwrite the field on page with ''.  Empty {} clears page.
+*/
+
+function displayInfo(info){
+    var keys = ['owner', 'department', 'nickname', 'attestationMetadata', 'time', 'makeModel', 'location', 'accuracy',];
+
+    var images = ['attestationMetadataImage', 'image'];
+
+    for (var k in keys){
+        k = keys[k];
+        var html = info[k] || ''; 
+        //console.log(('data-' + k));
+        //console.log(document.getElementById('data-' + k));
+        document.getElementById('data-' + k).innerHTML = html;
+    }
+
+    for (var k in images){
+        k = images[k];
+        if (info[k]) {
+        	var image = '';
+        	
+            image += '<img src="' + info[k] + '" alt="'+info[k]+'"';
+            if (k == "attestationMetadataImage") {
+            	image += ' style= "max-height: 50px; max-width: 100px;"';
+            } else if (k == 'image') {
+            	image += ' data-rotate="0"';
+            }
+            image += '>';
+        	
+            //if (k == 'image') {
+        	//	image += '<p>Controls:&nbsp;<a href="javascript:void(0)" onclick="rotateRight(-90)">Rotate Left</a>&nbsp;<a href="javascript:void(0)" onclick="rotateRight(90)">Rotate Right</a></p>';
+        	//}
+
+        	document.getElementById('data-' + k).innerHTML = image;
+        }
+        else {
+            document.getElementById('data-' + k).innerHTML = '';
+        }
+    }
+
+    if (info['coord']) {
+        var map = '<iframe class="c-googlemap" id="gmap_canvas"' +
+        'src="https://maps.google.com/maps?q='+ info.coord.lat +','+ info.coord.lon +'&t=&z=13&ie=UTF8&iwloc=&output=embed"' +
+        'frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>';
+
+        document.getElementById('data-map').innerHTML = map;
+    }
+    else {
+        document.getElementById('data-map').innerHTML = '';
+    }
+
+    if (info['imported']) {
+        document.getElementById('data-imported').style.display = 'block';
+    } else {
+        document.getElementById('data-imported').style.display = 'none';
+    }
+
+
+    _showFields(true);
+}
+
+// Indicate to show data fields or hide them.
+function _showFields(show){
+    var fields = ['div4','div5','div6','div7','div8','div9','div10','div11','div12']
+    for (var f in fields){
+        f = fields[f];
+        console.log('f:'+f, document.getElementsByClassName(f));
+        var elements = document.getElementsByClassName(f);
+        for (var i = 0; i < elements.length; i++){
+            elements[i].style.display = show ? null : 'none';
+        }
+    }
+}
+
+
+/** Reset state in display.
+*/
+function resetState(){
+    document.getElementById('msg-success').style.display = 'none';
+    document.getElementById('msg-error').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+
+    displayInfo({});
+    _showFields(false);
+}
+
+/** Hide messages, show loading icon.
+*/
+function loading(){
+    document.getElementById('loading').style.display = 'block';
+}
+
+  </script>
+
+</body>
+
+</html>

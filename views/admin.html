@@ -1,0 +1,38 @@
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <title>FIDO2 Administration</title>
+  <link rel="stylesheet" type="text/css" href="/static/styles.css" />
+  <script src="/static/jquery.min.js"></script>
+  <script src="/static/fidoadmin.js"></script>
+  <script type="text/javascript">
+
+  function onLoad() {
+    populateUserInfo();
+  }
+
+  </script>
+</head>
+
+<body onload="javascript:onLoad()">
+  <div class="header">
+    <div class="brandingLogo"><img src="/static/ibm-logo.png"></img></div>
+  </div>
+  <div class="content">
+    <div class="contentHeader">
+      <h1 class="pageTitle">FIDO Administration</h1>
+    </div>
+    <div class="pageContent">
+      <div id="userinfodiv" style="display:none">Welcome: <b><div id="usernamediv" style="display:inline"></div></b>&nbsp;&nbsp;<a href="javascript:doLogout()">Logout</a>&nbsp;&nbsp;<a href="/">Home</a></div>
+      <br /><br />
+      <h2>Operations</h2>
+      <ul>
+        <li><a href="javascript:adminUsers()">User Management</a></li>
+        <li><a href="javascript:adminRegistrations()">FIDO Registrations</a></li>
+      </ul>
+      <div id="operationDiv">
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+
+#
+# The fidophoto container
+#
+
+  fidophoto:
+    image: sweeden/fidophoto:latest
+    hostname: www.fidophoto.com
+    restart: always
+    environment:
+      - SECRET=${SECRET}
+      - PORT=${PORT}
+      - LOCAL_SSL_SERVER=${LOCAL_SSL_SERVER}
+      - LOCAL_SSL_PORT=$(LOCAL_SSL_PORT}
+      - RPID=${RPID}
+      - CI_TENANT_ENDPOINT=${CI_TENANT_ENDPOINT}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+    ports:
+      - {$LOCAL_SSL_PORT}:${LOCAL_SSL_PORT}
+

@@ -1,0 +1,404 @@
+{
+	"info": {
+		"_postman_id": "a8a67b99-ea25-4f79-ba44-0b068ce7add3",
+		"name": "FIDOPhoto",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "WhoAmI",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "deecaeda-af51-4892-af15-ae9fd3435c02",
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);",
+							"postman.setEnvironmentVariable(\"username\", jsonData.username);",
+							"postman.setEnvironmentVariable(\"displayName\", jsonData.displayName);"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Content-type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"operation\":\"verify\"\n}"
+				},
+				"url": {
+					"raw": "https://{{hostport}}/me",
+					"protocol": "https",
+					"host": [
+						"{{hostport}}"
+					],
+					"path": [
+						"me"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "FetchAttesationOptions",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "3f6346c1-fbd8-45a5-9a4f-66c26b972ea8",
+						"exec": [
+							"eval(globals.fidoutils);",
+							"",
+							"var jsonData = pm.response.json();",
+							"",
+							"pm.test(\"Status ok\", function() {",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"    var cco = attestationOptionsResponeToCredentialCreationOptions(jsonData);",
+							"    pm.environment.set(\"cco\", JSON.stringify(cco));",
+							"    console.log(\"cco: \" + JSON.stringify(cco));",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"displayName\":\"{{displayName}}\",\"attestation\":\"direct\",\"username\":\"{{username}}\"}"
+				},
+				"url": {
+					"raw": "https://{{hostport}}/attestation/options",
+					"protocol": "https",
+					"host": [
+						"{{hostport}}"
+					],
+					"path": [
+						"attestation",
+						"options"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PostAttesationResult",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "e048fc1b-dd01-446b-a5cf-e6dbf20eff1e",
+						"exec": [
+							"eval(globals.fidoutils);",
+							"",
+							"var attestationFormat = 'packed'; // can be 'none', 'fido-u2f', 'packed', 'packed-self'",
+							"",
+							"// ensure the origin used in clientDataJSON matches the host we are operating against",
+							"var currentConfig = JSON.parse(pm.environment.get(\"fidoutilsConfig\"));",
+							"currentConfig.origin = \"https://\" +  pm.environment.get(\"hostport\");",
+							"pm.environment.set(\"fidoutilsConfig\", JSON.stringify(currentConfig));",
+							"",
+							"// generate an attestation response from the current CredentialCreationOptions (up=true, uv=true)",
+							"var ccor = processCredentialCreationOptions(",
+							"    JSON.parse(pm.environment.get(\"cco\")),",
+							"    attestationFormat, ",
+							"    true, ",
+							"    true);",
+							"",
+							"// add a friendly name, in this case generated",
+							"//ccor.nickname = \"postman-\" + attestationFormat + \"-\" + generateRandom(10);",
+							"ccor.nickname = \"Shane's Pi Camera\";",
+							"",
+							"pm.environment.set(\"ccor\", JSON.stringify(ccor));",
+							"console.log(\"sending ccor: \" + JSON.stringify(ccor));",
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "8147b4e7-5ab5-477a-a8ae-509fa8d3c60f",
+						"exec": [
+							"eval(pm.environment.get('fidoutils'));",
+							"",
+							"var jsonData = pm.response.json();",
+							"",
+							"pm.test(\"Status ok\", function() {",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{{ccor}}\n"
+				},
+				"url": {
+					"raw": "https://{{hostport}}/attestation/result",
+					"protocol": "https",
+					"host": [
+						"{{hostport}}"
+					],
+					"path": [
+						"attestation",
+						"result"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "FetchAssertionOptions",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "5abf9abd-b557-40f1-a07e-18639260034e",
+						"exec": [
+							"eval(globals.fidoutils);",
+							"",
+							"var jsonData = pm.response.json();",
+							"",
+							"pm.test(\"Status ok\", function() {",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"    var cro = assertionOptionsResponeToCredentialRequestOptions(jsonData);",
+							"    pm.environment.set(\"cro\", JSON.stringify(cro));",
+							"    //console.log(\"cro: \" + JSON.stringify(cro));",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"username\":\"{{username}}\", \"userVerification\":\"preferred\"}"
+				},
+				"url": {
+					"raw": "https://{{hostport}}/assertion/options",
+					"protocol": "https",
+					"host": [
+						"{{hostport}}"
+					],
+					"path": [
+						"assertion",
+						"options"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PostAssertionResult",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "e048fc1b-dd01-446b-a5cf-e6dbf20eff1e",
+						"exec": [
+							"eval(globals.fidoutils);",
+							"",
+							"// generate an assertion response from the current CredentialRequestOptions",
+							"console.log(\"Calling processCredentialRequestOptions starting with: \" + pm.environment.get(\"cro\"));",
+							"",
+							"// ensure the origin used in clientDataJSON matches the host we are operating against",
+							"var currentConfig = JSON.parse(pm.environment.get(\"fidoutilsConfig\"));",
+							"currentConfig.origin = \"https://\" +  pm.environment.get(\"hostport\");",
+							"pm.environment.set(\"fidoutilsConfig\", JSON.stringify(currentConfig));",
+							"",
+							"// get the assertion with up=true, uv=true",
+							"var cror = processCredentialRequestOptions(",
+							"    JSON.parse(pm.environment.get(\"cro\")), ",
+							"    true, ",
+							"    true);",
+							"",
+							"pm.environment.set(\"cror\", JSON.stringify(cror));",
+							"console.log(\"sending cror: \" + JSON.stringify(cror));",
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "8147b4e7-5ab5-477a-a8ae-509fa8d3c60f",
+						"exec": [
+							"eval(pm.environment.get('fidoutils'));",
+							"",
+							"var jsonData = pm.response.json();",
+							"",
+							"pm.test(\"Status ok\", function() {",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"});",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "{{access_token}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"type": "text",
+						"value": "application/json"
+					},
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"type": "text",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{{cror}}\n"
+				},
+				"url": {
+					"raw": "https://{{hostport}}/assertion/result",
+					"protocol": "https",
+					"host": [
+						"{{hostport}}"
+					],
+					"path": [
+						"assertion",
+						"result"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "425e4312-cc26-4990-804c-4faecbd5c318",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "f8f0eb01-ad72-47c6-a213-a47192b070e8",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"protocolProfileBehavior": {}
+}

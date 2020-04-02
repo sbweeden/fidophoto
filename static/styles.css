@@ -1,0 +1,279 @@
+* {
+margin: 0;
+padding: 0;
+font-family: arial;
+font-size: 12px;
+}
+
+html {
+        border: 1px solid #ffffff;
+}
+
+.header{
+    background: #595C64;
+    background: -moz-linear-gradient(center top, #595C64, #1B1B1C);
+    background: -webkit-linear-gradient(top, #595C64, #1B1B1C);
+    background: -ms-linear-gradient(top, #595C64, #1B1B1C);
+    background: linear-gradient(to bottom, #595C64, #1B1B1C);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#595C64', endColorstr='#1B1B1C', GradientType=0);
+
+
+
+  border-bottom: 1px solid #666666;
+  border-top: 1px solid #999999;
+  height: 50px;
+}
+
+.brandingLogo {
+  float: left;
+  height: 50px;
+  margin-left: 15px;
+  width: 100px;
+}
+
+
+.content {
+  margin: auto;
+  width: 1024px;
+  padding: 5px 15px;
+}
+
+.contentHeader {
+        border-bottom: 1px dotted #999999;
+        margin-bottom: 15px;
+}
+
+.pageTitle {
+        color: #222222;
+        font-family: arial;
+        font-size: 24px;
+        font-weight: bold;
+}
+
+.pageTitle.error {
+    color: #D9182D;
+}
+
+.instructions {
+        font-family: arial;
+        font-size: 12px;
+        color: #222222;
+        margin-left: 15px;
+}
+
+.instructions-size {
+        font-family: arial;
+        font-size: 12px;
+        color: #222222;
+        margin-left: 15px;
+        width: 600px;
+}
+
+.submitButton {
+    background: #008ABF;
+    background: -moz-linear-gradient(center top, #008ABF, #085884);
+    background: -webkit-linear-gradient(top, #008ABF, #085884);
+    background: -ms-linear-gradient(top, #008ABF, #085884);
+    background: linear-gradient(to bottom, #008ABF, #085884);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#008ABF', endColorstr='#085884', GradientType=0);
+    border: 1px solid #0A5F8E;
+    border-radius: 3px 3px 3px 3px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+    color: #FFFFFF;
+    font-weight: bold;
+    padding: 3px 7px;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.submitButton:hover {
+    background: #206B93;
+    background: -moz-linear-gradient(center top, #1A95C5, #206B93);
+    background: -webkit-linear-gradient(top, #1A95C5, #206B93);
+    background: -ms-linear-gradient(top, #1A95C5, #206B93);
+    background: linear-gradient(to bottom, #1A95C5, #206B93);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#1A95C5', endColorstr='#206B93', GradientType=0);
+}
+
+.submitButton:active {
+
+    background: #0A4E74;
+    background: -moz-linear-gradient(center top, #085884, #008ABF);
+    background: -webkit-linear-gradient(top, #085884, #008ABF);
+    background: -ms-linear-gradient(top, #085884, #008ABF);
+    background: linear-gradient(to bottom, #085884, #008ABF);
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#085884', endColorstr='#008ABF', GradientType=0);
+    color: #F2FAFE;
+}
+
+.sectionTitle {
+        font-weight:bold;
+        margin-bottom: 5px;
+        margin-top: 10px;
+}
+
+label {
+font-family: arial;
+font-size: 12px;
+font-weight: normal;
+vertical-align: top;
+}
+
+label.vertical {
+        display: block;
+}
+
+input[type=text], input[type=password] {
+ padding: 3px 7px;
+ border: 1px solid #AAAAAA;
+ transition-property: background-color, border;
+ transition-duration: 0.35s;
+ width: 120px;
+
+}
+
+input[type=text]:hover, input[type=password] {
+  border-color: #66D0E9;
+}
+
+input[type=text]:active, input[type=password] {
+  border-color: #008ABF !important;
+}
+
+.section {
+  border: 1px solid #CCCCCC;
+  margin: 10px 0 10px 15px;
+  padding: 5px;
+  position: relative;
+  width: 400px;
+  z-index: 1;
+}
+
+.section .overlay {
+  display: none;
+}
+
+.section.disabled .overlay {
+  background-color: #FFFFFF;
+  opacity: 0.5;
+  filter: alpha(opacity=50);
+  position: absolute;
+  z-index: 2;
+  right: 0px;
+  top: 0px;
+  bottom: 0px;
+  left: 0px;
+  display: block;
+}
+
+.dataTable {
+  border-collapse: collapse;
+  empty-cells: show;
+  margin: 5px 5px 10px 5px;
+}
+
+
+.headerRow {
+  background-color: #EDEDED ;
+  background: -moz-linear-gradient(center top, #FFFFFF, #EDEDED);
+  background: -webkit-linear-gradient(top, #FFFFFF, #EDEDED);
+  background: -ms-linear-gradient(top, #FFFFFF, #EDEDED);
+  background: linear-gradient(to bottom, #FFFFFF, #EDEDED);
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#FFFFFF', endColorstr='#EDEDED', GradientType=0);
+  color: #444444;
+  font-weight: bold;
+  text-shadow: 1px 1px 1px #FFFFFF;
+}
+
+.dataTable td {
+  border: 1px solid #CCCCCC;
+  padding: 10px 7px;
+}
+
+.controls {
+  margin: 10px 0;  
+}
+
+.errorMessage {
+  background: #fff3f3;
+  border-color: rgb(205, 49, 42);
+  border-color: rgba(205, 49, 42, 0.75);
+  border-width: 1px;
+  border-radius: 2px;
+  border-style: solid;
+  padding: 5px;
+}
+
+.hidden {
+  font-weight:bold;
+  position:absolute;
+  left:-10000px;
+  top:auto;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+}
+
+.visible {
+  font-weight:bold;
+  position:static; 
+  width:auto; 
+  height:auto;
+}
+
+.userid {
+  font-weight:bold;
+  float:right;
+}
+
+input[type="submit"]:disabled, input[type="button"]:disabled {
+  background: gray !important;
+  opacity: 0.5;
+  filter: alpha(opacity=50);
+}
+
+.select-editable { 
+  position:relative; 
+  background-color:white; 
+  border:1px solid #AAAAAA;  
+  width:260px; 
+  height:21px; 
+}
+
+.select-editable select { 
+  position:absolute; 
+  top:0px; 
+  left:0px; 
+  font-size:12px; 
+  border:2px; 
+  width:260px; 
+  height:21px; 
+}
+
+.select-editable input {  
+  top:0px; 
+  left:0px; 
+  width:240px; 
+  padding:0; 
+  font-size:12px;
+  position:absolute; 
+  border:none;
+  height:21px;
+  padding: 0 0 0 3px; 
+}
+
+.select-editable select:focus, 
+
+.select-editable input:focus { 
+  outline:none; 
+}
+
+.questionsTable{
+  border-collapse: collapse;
+  empty-cells: show;
+  margin: 5px 5px 10px 5px;
+}
+
+.questionsTable td {
+  border: none;
+  padding: 7px 5px;
+}
