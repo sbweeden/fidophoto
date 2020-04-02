@@ -2,7 +2,7 @@
 
 This is a demonstration Node.js application that utilises IBM Cloud Identity for authentication and FIDO2 services to support a signed photograph mobile application.
 
-To use locally:
+## To use locally:
 
 1. Update your local hosts file to have www.fidophoto.com as a hostname alias (I do this for the loopback address 127.0.0.1) where your Node application is going to listen.
 1. Make sure you have Node.js installed.
@@ -13,7 +13,7 @@ To use locally:
 1. npm run start_local
 
 
-CI tenant requirements:
+## CI tenant requirements:
 
 1. Create an API client_id and client_secret (these go into the .env file as OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET) with the following entitlements:
     1. Authenticate any user
@@ -31,13 +31,13 @@ CI tenant requirements:
 	1. No API Access is needed as we do not make use of the OIDC-provided delegated access token in this application.
 	1. Under Entitlments, I selected "All users are entitled to this application". Of course you could be more restrictive, particularly if using the Cloud Directory identity source.
 
-Other possible customizations:
+## Other possible customizations:
 
 1. If you want to customize the "department" that the user belongs to as seen when verifying a photo, see ciservices.js, and search for "result.reg.department". You could use any attribute from the user profile (to trace what is avaialable: console.log(JSON.stringify(userSCIMRecord));
 1. In the Cloud Identity application definition you could enforce conditional 2FA for SSO to the application if desired.
 
 
-Testing end-to-end with Postman and signing and verifying a photograph:
+## Testing end-to-end with Postman and signing and verifying a photograph:
 
 1. In Postman, create globals call fidotools and fidoutils from the corresponding JS files in the phototools/postman/globals directory.
 1. Import the environment and update the access_token to be your user access token from the Account Settings page in the app. 
