@@ -66,4 +66,5 @@ This is a demonstration Node.js application that utilises IBM Cloud Identity (CI
 
 ## Licensing acknowledgements
 This application makes use of:
-1. Javascript QRCode generator from [node-qrcode](https://github.com/soldair/node-qrcode).
+1. A number of Node.js open source packages, documented in package.json.
+1. Javascript QRCode generator from [node-qrcode](https://github.com/soldair/node-qrcode). This is used in the account settings page of the web application.
