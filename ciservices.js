@@ -1,5 +1,5 @@
 //
-// ciservices - performs user and FIDO2 operations against IBM Cloud Identity
+// ciservices - performs user, group and FIDO2 operations using IBM Cloud Identity APIs
 //
 const KJUR = require('jsrsasign');
 const requestp = require('request-promise-native');
@@ -82,7 +82,9 @@ function validateSelf(fidoRequest, username, allowEmptyUsername) {
 
 //
 // Takes a CI attestation result payload and converts it to a format
-// expected by the client.
+// expected by the client. This comes about because the client was originally
+// written to use ISAM-as-a-service. The attributes are actually not used in
+// our example app.
 //
 function coerceAttestationResultToClientFormat(req, attestationResult) {
 	let result = {
@@ -96,7 +98,10 @@ function coerceAttestationResultToClientFormat(req, attestationResult) {
 
 //
 // Takes a CI assertion result payload and converts it to a format
-// expected by the client.
+// expected by the client. This comes about because the client was 
+// originally written to use ISAM-as-a-service. In any case for the
+// FIDOPhoto app, assertions are only used by POSTMAN during 
+// credential testing.
 //
 function coerceAssertionResultToClientFormat(req, reqBody, assertionResult) {
 
@@ -127,10 +132,8 @@ function coerceAssertionResultToClientFormat(req, reqBody, assertionResult) {
 	return tm.getAccessToken(req)
 	.then((access_token) => {
 		// look up username from user.id
-		console.log("about to call getUserAttributes");
 		return getUserAttributes(req, null, result.user.id);
 	}).then((ua) => {
-		console.log("getUserAttributes returned: " + JSON.stringify(ua));
 		// fill in user details
 		result.user.name = ua.username;
 		result.attributes.credentialData.displayName = ua.displayName;
@@ -149,7 +152,7 @@ function coerceAssertionResultToClientFormat(req, reqBody, assertionResult) {
 *
 * to the CI server. There is little validation done other than to ensure
 * that the client is not sending a request for a user other than the user
-* who is currently logged in.
+* who is currently logged in. CI will perform other payload validation.
 */
 function proxyFIDO2ServerRequest(req, rsp, validateUsername, allowEmptyUsername) {
 	let userDetails = getUserDetails(req);
@@ -165,7 +168,7 @@ function proxyFIDO2ServerRequest(req, rsp, validateUsername, allowEmptyUsername)
 		}
 	}
 
-	// when performing registrations, I want the registration 
+	// when performing registrations, we want the registration 
 	// enabled immediately so insert this additional option
 	if (req.url.endsWith("/attestation/result")) {
 		bodyToSend.enabled = true;
@@ -195,7 +198,7 @@ function proxyFIDO2ServerRequest(req, rsp, validateUsername, allowEmptyUsername)
 		let rspBody = proxyResponse;
 
 
-		// coerce CI responses to format client expects (comes from original implementation)
+		// coerce CI responses to format client expects (comes from original ISAM-based implementation)
 		if (req.url.endsWith("/attestation/result")) {
 			return coerceAttestationResultToClientFormat(req, proxyResponse);
 		} else if (req.url.endsWith("/assertion/result")) {
@@ -315,7 +318,7 @@ function deleteRegistration(req, rsp) {
 					json: true
 				});
 			}).then((regToDelete) => {
-				// is it owned by the currenty authenticated user
+				// is it owned by the currenty authenticated user?
 				if (regToDelete.userId == userDetails.userSCIMId) {
 					return requestp({
 						url: process.env.CI_TENANT_ENDPOINT + "/v2.0/factors/fido2/registrations/" + regId,
@@ -385,6 +388,11 @@ function registrationDetails(req, rsp) {
 	}
 }
 
+//
+// Given a user record from CI, extract a display name for a user. We prefer
+// the "formatted" name if it exists, otherwise fallback to userName which 
+// should always be present.
+//
 function getDisplayNameFromSCIMResponse(scimResponse) {
 	let result = scimResponse.userName;
 	if (scimResponse.name != null && scimResponse.name.formatted != null) {
@@ -394,6 +402,10 @@ function getDisplayNameFromSCIMResponse(scimResponse) {
 }
 
 
+//
+// Populates local caches of rpId -> rpUuid, and rpUuid -> rpId. This just helps
+// with application performance.
+//
 function updateRPMaps() {
 	// reads all relying parties from discovery service and updates local caches
 	return tm.getAccessToken(null)
@@ -420,6 +432,10 @@ function updateRPMaps() {
 	});
 }
 
+//
+// Adds the plain text rpId to each registration. In CI a registration references
+// rpId using a separate intermediate identifier.
+//
 function updateRegistrationsFromMaps(registrationsResponse) {
 	registrationsResponse.fido2.forEach((reg) => {
 		// there really shouldn't be any "UNKNOWN" rpIds because if an RP is deleted, 
@@ -429,6 +445,10 @@ function updateRegistrationsFromMaps(registrationsResponse) {
 	return registrationsResponse;	
 }
 
+//
+// Adds rpId to each registration, including lookup of the rpId's if
+// needed.
+//
 function coerceCIRegistrationsToClientFormat(registrationsResponse) {
 	return new Promise((resolve, reject) => {
 		// Do this check so we only lookup each unknown rpUuid all at once
@@ -451,6 +471,13 @@ function coerceCIRegistrationsToClientFormat(registrationsResponse) {
 	});
 }
 
+//
+// Returns information about the user and all of their FIDO2 registrations for the 
+// application's rpId. Note that there is an assumption here that all of a user's
+// records can be returned in a single response.
+//
+// TODO - consider future enhancement to deal with pagination of FIDO2 registrations.
+//
 function getUserResponse(req) {
 
 	let userDetails = getUserDetails(req);
@@ -480,7 +507,7 @@ function getUserResponse(req) {
 			json: true
 		};
 
-		// This includes an example of how to measure the response time for a call
+		// This includes an example of how to measure the response time for a call to CI
 		let start = (new Date()).getTime();
 		return requestp(options).then((r) => {
 			let now = (new Date()).getTime();
@@ -500,11 +527,11 @@ function getUserResponse(req) {
 	});
 }
 
-/**
-* Determines if the user is logged in.
-* If so, returns their username and list of currently registered FIDO2 credentials as determined from a CI API. 
-* If not returns {"authenticated":false}
-*/
+//
+// Determines if the user is logged in.
+// If so, returns their username and list of currently registered FIDO2 credentials as determined from a CI API. 
+// If not returns {"authenticated":false}
+//
 function sendUserResponse(req, rsp) {
 	let userDetails = getUserDetails(req);
 	if (userDetails.isAuthenticated()) {
@@ -520,6 +547,11 @@ function sendUserResponse(req, rsp) {
 	}		
 }
 
+//
+// Serves a simple metadata JSON payload with username, rpId and FIDO endpoint details.
+// Typically this is used by the mobile app during registration and the user is authenticated 
+// via their access token.
+//
 function sendMetadata(req, rsp) {
 	let userDetails = getUserDetails(req);
 
@@ -539,6 +571,9 @@ function sendMetadata(req, rsp) {
 	}		
 }
 
+//
+// Used in the app to allow the user to generate a new user access token.
+//
 function newAccessToken(req, rsp) {
 	let userDetails = getUserDetails(req);
 	if (userDetails.isAuthenticated()) {
@@ -553,11 +588,15 @@ function newAccessToken(req, rsp) {
 			sendUserResponse(req, rsp);
 		});
 	} else {
-		// return the user response
+		// return the user response - will handle unauthenticated state
 		sendUserResponse(req, rsp);
 	}		
 }
 
+//
+// Stores the user access token in a custom SCIM attribute in the CI user record.
+// Handles JIT-P of the SCIM attribute if it's not already part of user schema.
+//
 function storeUserAccessToken(req, userSCIMRecord, uat) {
 
 	let userDetails = getUserDetails(req);
@@ -677,6 +716,7 @@ function storeUserAccessToken(req, userSCIMRecord, uat) {
 							}
 						});
 					} else {
+						// shouldn't get here either
 						logger.logWithTS("Unable to create new schema attribute for userAccessToken because there are no custom attributes available");
 					}
 				});
@@ -688,14 +728,16 @@ function storeUserAccessToken(req, userSCIMRecord, uat) {
 	});
 }
 
-/**
-* Used to return the existing application group ID, cached if possible, otherwise
-* from the SCIM registry, creating the group if needed
-*/
+//
+// Used to return the existing application group ID, cached if possible, otherwise
+// from the SCIM registry, creating the group if needed
+//
 function getApplicationGroupID(req) {
+	// if it's already cached, just return that
 	if (applicationGroupSCIMId != null) {
 		return applicationGroupSCIMId;
 	} else {
+		// need to look it up / create if necessary
 		let access_token = null;
 		return tm.getAccessToken(req)
 		.then((at) => {
@@ -720,7 +762,7 @@ function getApplicationGroupID(req) {
 				applicationGroupSCIMId = scimResponse.Resources[0].id;
 				return applicationGroupSCIMId;
 			} else {
-				// create the group, get id from resonse and return that
+				// create the group, get id from response and return that
 				let groupData = {
 					"displayName": applicationGroupName,
 					"urn:ietf:params:scim:schemas:extension:ibm:2.0:Group": {
@@ -758,9 +800,9 @@ function getApplicationGroupID(req) {
 	}
 }
 
-/**
-* Used to check the user is in the application group, and add them if not already there.
-*/
+//
+// Used to check the user is in the application group, and add them if not already there.
+//
 function validateUserAccount(req) {
 
 	let userDetails = getUserDetails(req);
@@ -829,18 +871,14 @@ function validateUserAccount(req) {
 					throw "Unable to add user to application group";
 				}
 			});
-
-
-
-
 		}
 	});
 }
 
-/**
-* Used to retrieve an existing (or generate a new) "user access token", which is an API key that users are 
-* assigned to be able to programatically call the FIDO attestation (and assertion) APIs.
-*/
+//
+// Used to retrieve an existing (or generate a new) "user access token", which is an API key that users are 
+// assigned to be able to programatically call the FIDO attestation (and assertion) APIs.
+//
 function getUserAccessToken(req, forceGenerateNew) {
 
 	let userDetails = getUserDetails(req);
@@ -901,12 +939,12 @@ function getUserAccessToken(req, forceGenerateNew) {
 	});
 }
 
-/**
-* Used to verify the signature information in the exif of an image against registered
-* credentials in Cloud Identity. If a matching credential can be found and the signature
-* is valid, return information about the credential and the registered owner, otherwise
-* return a general failed status.
-*/
+//
+// Used to verify the signature information in the exif of an image against registered
+// credentials in Cloud Identity. If a matching credential can be found and the signature
+// is valid, return information about the credential and the registered owner, otherwise
+// return a general failed status.
+//
 function photoVerifier(req,rsp) {
 	let result = { "status": "failed" };
 
@@ -934,15 +972,21 @@ function photoVerifier(req,rsp) {
 
 		let access_token = null;
 
-		// perform lookup on credentialId (well that's the long-term plan - for now we have to do a scan)
+		// perform lookup on credentialId 
 		tm.getAccessToken(req)
 		.then( (at) => {
 			access_token = at;
 
-			// until there is a way to search by credId, have to scan all registrations for the RPID :(
+			// until there is a way to search by credId, have to scan all registrations
+
+			// TODO - this search does not yet exist in CI, so for now we have to do a scan
+			// When that is fixed, the search indicated below can be added back in.
+
+			//let search = 'attributes/credentialId="' + credentialId + '"';
 			return requestp({
 				url: process.env.CI_TENANT_ENDPOINT + "/v2.0/factors/fido2/registrations",
 				method: "GET",
+				// qs: { "search": search },
 				headers: {
 					"Accept": "application/json",
 					"Authorization": "Bearer " + access_token
@@ -952,6 +996,8 @@ function photoVerifier(req,rsp) {
 		}).then((allRegistrations) => {
 			//logger.logWithTS("ciservices.photoVerifier allRegistrations: " + JSON.stringify(allRegistrations));
 			let foundReg = null;
+
+			// TODO - this can be optomised once the above search criteria works
 			for (let i = 0; i < allRegistrations.fido2.length && foundReg == null; i++) {
 				let reg = allRegistrations.fido2[i];
 
@@ -986,7 +1032,7 @@ function photoVerifier(req,rsp) {
 		}).then((foundReg) => {
 			//
 			// retrieve the full registration record (this will include any metadata attributes)
-			// Hopefully this can be optimised out when we are able to do a credentialId search.
+			// TODO - This might be able to be optimised out when we are able to do a credentialId search.
 			// 
 			return requestp({
 				url: process.env.CI_TENANT_ENDPOINT + "/v2.0/factors/fido2/registrations/" + foundReg.id,
@@ -998,7 +1044,8 @@ function photoVerifier(req,rsp) {
 				json: true
 			});
 		}).then((reg) => {
-			// format what we get from this for client needs
+			// format what we get from this for client needs. The client format comes from the original
+			// ISAM-based implementation of the verification page.
 			result.reg = {};
 
 			if (reg.attributes.nickname != null) {
@@ -1024,8 +1071,6 @@ function photoVerifier(req,rsp) {
 			});
 		}).then((userSCIMRecord) => {
 
-			//console.log("The user record is: " + JSON.stringify(userSCIMRecord));
-
 			result.reg.username = userSCIMRecord.userName;
 
 			// this is canned data for now, but could come from the user record if stored there
@@ -1047,11 +1092,10 @@ function photoVerifier(req,rsp) {
 	}
 }
 
-/**
-* Retrieves a list of all users in the applicationGroup, and calculates the number of registrations for each.
-* Admin access is guaranteed by middleware before this can be called.
-*/
-
+//
+// Retrieves a list of all users in the applicationGroup, and calculates the number of registrations for each.
+// Admin access is guaranteed by middleware before this can be called.
+//
 function adminGetUsersProcessMember(req, member, fidoRegistrationsByUserId, result) {
 	var m = {
 		"username": member.userName,
@@ -1095,6 +1139,13 @@ function adminGetUsersProcessMember(req, member, fidoRegistrationsByUserId, resu
 	});
 }
 
+//
+// Gets all users in the application group, including their registrations.
+// An assumption is made here that all the data for users and registrations can be returned in a
+// single response.
+//
+// TODO - Consider large data sets and results based on pagination.
+//
 function adminGetUsers(req, rsp) {
 	let result = [];
 
@@ -1109,7 +1160,8 @@ function adminGetUsers(req, rsp) {
 		// lookup all FIDO registrations (for the RP) once as this will be more efficient than
 		// a separate CI search per user
 
-		// unfortunately RPID search doesn't work at the moment, so just get the lot...
+		// TODO - unfortunately RPID search doesn't work at the moment, so just get the lot...
+		// When that is added, add this search back in
 		//let search += 'attributes/rpId="'+process.env.RPID+'"';
 
 		return requestp({
@@ -1123,8 +1175,10 @@ function adminGetUsers(req, rsp) {
 			json: true
 		});
 	}).then((registrationsResponse) => {
-		// this filter is done because we can't do a search on RPID yet
+		// group registrations by their owner
 		registrationsResponse.fido2.forEach((reg) => {
+			// this filter is done because we can't do a search on RPID yet
+			// TODO - optomise this out when rpId based search above works
 			if (reg.attributes.rpId == process.env.RPID) {
 				if (fidoRegistrationsByUserId[reg.userId] == null) {
 					fidoRegistrationsByUserId[reg.userId] = [];
@@ -1133,7 +1187,7 @@ function adminGetUsers(req, rsp) {
 			}
 		});
 	}).then(() => {
-		// lookup group - given we are logged in, applicationGroupSCIMId should be populated
+		// lookup application group - given we are logged in, applicationGroupSCIMId should be populated
 		return requestp({
 			url: process.env.CI_TENANT_ENDPOINT + "/v2.0/Groups/" + applicationGroupSCIMId,
 			method: "GET",
@@ -1144,7 +1198,7 @@ function adminGetUsers(req, rsp) {
 			json: true
 		});
 	}).then((groupResponse) => {
-		// if we got the group, return it's id, otherwise create it, then return the id
+		// for each user in the application group, build a user entry including number of registrations
 		let allPromises = [];
 		if (groupResponse != null && groupResponse.members != null) {
 			groupResponse.members.forEach((member) => {
@@ -1157,6 +1211,9 @@ function adminGetUsers(req, rsp) {
 	});
 }
 
+//
+//Looks up user details (userName, displayName, userAccessToken for a user based on their id)
+//
 function getUserAttributes(req, userIdMap, userId) {
 	return tm.getAccessToken(req)
 	.then((access_token) => {
@@ -1222,7 +1279,8 @@ function adminGetRegistrations(req, rsp) {
 			search += '&attributes/rpId="' + process.env.RPID + '"';
 		} else {
 			// unfortunately RPID-only search doesn't work at the moment, so just get the lot...
-			//let search = 'attributes/rpId="'+process.env.RPID+'"';
+			// TODO - add this search back in once rpId-based search is available
+			//search = 'attributes/rpId="'+process.env.RPID+'"';
 		}
 
 		let options = {
@@ -1248,6 +1306,7 @@ function adminGetRegistrations(req, rsp) {
 		registrationsResponse.fido2.forEach((reg) => {
 
 			// this filter is done because we can't do a search on RPID-only yet
+			// TODO - remove it once the search above works
 			if (reg.attributes.rpId == process.env.RPID) {
 
 				// coerce into client-expected format
@@ -1264,10 +1323,10 @@ function adminGetRegistrations(req, rsp) {
 							"credentialId": reg.attributes.credentialId,
 							"credentialPublicKey": reg.attributes.credentialPublicKey,
 							"aaguid": reg.attributes.aaGuid,
-							// not currently available
+							// not currently available - TODO add when available and remove code below
 							// "attestationFormat": reg.attributes.attestationFormat, 
 							"attestationType": reg.attributes.attestationType, 
-							// not currently available
+							// not currently available - TODO add when available and remove code below
 							// "wasUserPresent": reg.attributes.userPresent, 
 							"wasUserVerified": reg.attributes.userVerified, 
 							"enabled": reg.enabled,
@@ -1280,6 +1339,14 @@ function adminGetRegistrations(req, rsp) {
 								"description": reg.attributes.description
 							}
 						};
+
+						// These are not yet available but should be - this code will add them if available
+						if (reg.attributes.attestationType) {
+							formattedRegistration["attestationType"] = reg.attributes.attestationType;
+						}
+						if (reg.attributes.userPresent) {
+							formattedRegistration["wasUserPresent"] = reg.attributes.userPresent;
+						}
 
 						return formattedRegistration;
 					}).then((formattedRegistration) => {
@@ -1319,6 +1386,9 @@ function adminGetRegistrations(req, rsp) {
 	});
 }
 
+//
+// admin operation for deleting a registration. Middlewhere ensures we are admin first.
+//
 function adminDeleteRegistration(req,rsp) {
 	let regId = req.body.id;
 	if (regId != null) {

@@ -1,7 +1,7 @@
 //
 // Utility functions for validating a user access token as an optional alternative
 // authentication mechanism in the express middleware. If authenticated via OAuth,
-// session is cleared and req.user is populated. This will only look for an 
+// session is cleared and req.user is populated. This will only look for and 
 // evaluate an access token if the request is not already authenticated via a 
 // session (e.g. not already an OIDC logged in session).
 //

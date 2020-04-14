@@ -1,5 +1,5 @@
 //
-// Express middleware for the app that verifies certain requests are made by an administrator
+// Express middleware for the app that verifies certain requests (those with a URL path starting with /admin) are made by an administrator
 //
 const userutils = require('./userutils.js');
 

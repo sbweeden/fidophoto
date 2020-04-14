@@ -1,6 +1,6 @@
 # fidophoto
 
-This is a demonstration Node.js application that utilises IBM Cloud Identity for authentication and FIDO2 services to support a signed photograph mobile application.
+This is a demonstration Node.js application that utilises IBM Cloud Identity (CI) for authentication and FIDO2 services to support a signed photograph mobile application.
 
 ## To use locally:
 
@@ -25,7 +25,7 @@ This is a demonstration Node.js application that utilises IBM Cloud Identity for
 	1. Use the authorization code flow WITHOUT PKCE. 
 	1. Use application URL https://www.fidophoto.com:9443, and redirect URL https://www.fidophoto.com:9443/callback. 
 	1. I would suggest "Do not ask for consent". This provides a more seamless SSO experience.
-	1. Token settings are not important as this application uses an admin-like API client rather than the user access token provided in OIDC. This is done to allow JIT-P of the FIDO definition, and custom SCIM attribute for the long-lived user access token. 
+	1. Token settings are not important as this application uses an admin-based API client rather than the user access token provided in OIDC. This is done to allow JIT-P of the FIDO definition, custom SCIM attribute creation for the long-lived user access token, automatic provisioning of an application group and adding of any new user to this group, and other admin-only CI APIs. 
 	1. No specific attributes need to be added to the id_token. 
 	1. Under Access Policies, I customized the identity sources for this application to just "Google". This provides a seamless SSO experience from the fidophoto app through Cloud Identity to Google and back, without the user having to stop at a Cloud Identity selection page for identity sources.
 	1. No API Access is needed as we do not make use of the OIDC-provided delegated access token in this application.
@@ -34,7 +34,7 @@ This is a demonstration Node.js application that utilises IBM Cloud Identity for
 ## Other possible customizations:
 
 1. If you want to customize the "department" that the user belongs to as seen when verifying a photo, see ciservices.js, and search for "result.reg.department". You could use any attribute from the user profile (to trace what is avaialable: console.log(JSON.stringify(userSCIMRecord));
-1. In the Cloud Identity application definition you could enforce conditional 2FA for SSO to the application if desired.
+1. In the CI application definition (under Sign-on -> Access Policy) you could enforce conditional 2FA for SSO to the application if desired.
 
 
 ## Testing end-to-end with Postman and signing and verifying a photograph:
@@ -44,16 +44,26 @@ This is a demonstration Node.js application that utilises IBM Cloud Identity for
 1. Also in the environment, validate the origin in fidoutilsConfig, and the values for hostport and rpId. These vary depending on the hostname used for exposing the application.
 1. Import the collection, and walk through the APIs from top to bottom, i.e. 
 	1. WhoAmI - this uses your access_token, and verifies you can authenticate with it to the application. Make sure this works and that a user profile is returned.
-	1. FetchAttestationOptions - obtains challenge used for registration. Again, make sure this works and you can an options object back.
-	1. PostAttestationResult - creates a FIDO keypair, and registers the public key. After this has run you should be able to see your registration in the FIDO2 Registrations page of the web app.
+	1. FetchAttestationOptions - obtains challenge used for credential registration. Again, make sure this works and you get an options object back.
+	1. PostAttestationResult - creates a FIDO credential keypair, and registers the public key. After this has run you should be able to see your registration in the FIDO2 Registrations page of the web app.
 	1. FetchAssertionOptions - obtains an authentication challenge, and the allowedCredentials list which should include the credential just registered.
 	1. PostAssertionResult - completes authentication with the registered credential.
-1. AFTER all the APIs in the Postman collection have been run successfully, inspect the environment object, and pull out the "Current value" of these two working variables: last_CredentialId and last_privKeyHex. 
+1. AFTER all the APIs in the Postman collection have been run successfully, inspect the environment object, and pull out the "Current value" of these two working variables: `last_CredentialId` and `last_privKeyHex`. 
 1. Update the command-line application phototools/sign_image.js with:
-	1. The value of var credentialId should be replaced with the value from last_CredentialId collected in the previous step.
-	1. The value of var privateKeyHex should be replaced with the value from last_privKeyHex collected in the previous step.
-	1. Verify that rpId matches your rpId from the Postman environment.
-	1. Set filename to point to the jpg file you wish to sign. This can be any existing JPG file you have, but one which contains GPS exif data looks better in the verifier later.
-	1. Set fileout to point to the destination filename you wish the signed image to be saved as.
-1. Run the signing app with "node sign_image.js". On success it completes silently, and your fileout should be populated.
+	1. The value of `var credentialId` should be replaced with the value from `last_CredentialId` collected in the previous step.
+	1. The value of `var privateKeyHex` should be replaced with the value from `last_privKeyHex` collected in the previous step.
+	1. Verify that `rpId` matches your rpId from the Postman environment.
+	1. Set `filename` to point to the jpg file you wish to sign. This can be any existing JPG file you have, but one which contains GPS exif data looks better in the verifier page later.
+	1. Set `fileout` to point to the destination filename you wish the signed image to be saved as.
+1. Run the signing app with `node sign_image.js`. On success it completes silently, and your `fileout` should be populated.
 1. In the web app, go to the "Verify a photo" page, and upload the signed image. It should validate successfully and show the user details of the owner of the credential registration.
+
+## Known limitations and TODOs
+
+1. A couple of the FIDO searches in `ciservers.js` use inefficient search criteria. This is due to temporary limitations in the search APIs in CI, that are being addressed. When these issues are fixed in CI, the search functions will be updated to more optomised search expressions.
+1. The application has not been tested on large user/data sets, or large numbers of registered credentials. It will need modification to work with searches that return multiple pages of items (i.e. more items than can be returned in a single request/response pair). The CI APIs have support for pagination, however this simple example web application does not have logic in place to leverage that and makes the assumption that all system records can be returned in a single search.
+
+
+## Licensing acknowledgements
+This application makes use of:
+1. Javascript QRCode generator from [node-qrcode](https://github.com/soldair/node-qrcode).
